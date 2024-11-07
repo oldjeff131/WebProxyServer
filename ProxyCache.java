@@ -19,7 +19,8 @@
      public static void init(int p) {
      port = p;
      try {
-         socket = /* Fill in */;
+        //建立監聽指定端口的 ServerSocket
+         socket =new ServerSocket(port);
      } catch (IOException e) {
          System.out.println("Error creating socket: " + e);
          System.exit(-1);
@@ -37,18 +38,21 @@
  
      /* Read request */
      try {
-         BufferedReader fromClient = /* Fill in */;
-         request = /* Fill in */;
+         BufferedReader fromClient = new BufferedReader(new InputStreamReader(client.getInputStream()));
+         request = new HttpRequest(fromClient);
      } catch (IOException e) {
          System.out.println("Error reading request from client: " + e);
          return;
      }
      /* Send request to server */
      try {
-         /* Open socket and write request to socket */
-         server = /* Fill in */;
-         DataOutputStream toServer = /* Fill in */;
-         /* Fill in */
+        //開啟與伺服器的 Socket 連接
+        server = new Socket(request.getHost(), request.getPort());
+        // 使用 DataOutputStream 發送請求給伺服器
+        DataOutputStream toServer = new DataOutputStream(server.getOutputStream());
+        //寫入HTTP請求
+        toServer.writeBytes(request.toString());
+        toServer.flush();
      } catch (UnknownHostException e) {
          System.out.println("Unknown host: " + request.getHost());
          System.out.println(e);
@@ -59,10 +63,15 @@
      }
      /* Read response and forward it to client */
      try {
-         DataInputStream fromServer = /* Fill in */;
-         response = /* Fill in */;
-         DataOutputStream toClient = /* Fill in */;
-         /* Fill in */
+        //使用 DataInputStream 讀取伺服器的回應
+        DataInputStream fromServer = new DataInputStream(server.getInputStream());
+        //解析伺服器的回應並創建 HttpResponse 對象
+        response = new HttpResponse(fromServer);
+        //使用 DataOutputStream 將回應轉發給客戶端
+        DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+        // 將回應標頭和主體寫入客戶端
+        toClient.writeBytes(response.toString());
+        toClient.write(response.body);
          /* Write response to client. First headers, then body */
          client.close();
          server.close();
@@ -96,7 +105,7 @@
      
      while (true) {
          try {
-         client = /* Fill in */;
+         client = socket.accept();
          handle(client);
          } catch (IOException e) {
          System.out.println("Error reading request from client: " + e);
