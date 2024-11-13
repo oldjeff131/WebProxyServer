@@ -96,7 +96,7 @@ public class ProxyCache {
     public static void main(String args[]) 
     {
 
-        int myPort = 8080;
+        int myPort = 0;
         try 
         {
             myPort = Integer.parseInt(args[0]);
