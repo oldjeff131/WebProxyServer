@@ -1,108 +1,101 @@
-
-/**
- * HttpRequest - HTTP request container and parser
- *
- * $Id: HttpRequest.java,v 1.2 2003/11/26 18:11:53 kangasha Exp $
- *
- */
-
 import java.io.*;
 import java.net.*;
 import java.util.*;
 
 public class HttpRequest {
-    /** Help variables */
+    //常數變數，表示換行符號
     final static String CRLF = "\r\n";
     final static int HTTP_PORT = 80;
-    /** Store the request parameters */
+    //儲存請求的參數
     String method;
     String URI;
     String version;
     String headers = "";
-    /** Server and port */
+    //伺服器主機與端口號
     private String host;
     private int port;
 
-    /** Create HttpRequest by reading it from the client socket */
+    //透過從客戶端Socket讀取來建立HttpRequest物件，from客戶端輸入流，用於讀取請求資料
     public HttpRequest(BufferedReader from) 
     {
-     String firstLine = "";
-    try 
-    {
-        firstLine = from.readLine();
-    } 
-    catch (IOException e) 
-    {
-        System.out.println("Error reading request line: " + e);
-    }
- 
-    String[] tmp = firstLine.split(" ");
-    //請求方法GET
-    method = tmp[0]; 
-    //請求的URI:index.html
-    URI = tmp[1];
-    //HTTP版本HTTP/1.1
-    version = tmp[2]; 
- 
-    System.out.println("URI is: " + URI);
- 
-    if (!method.equals("GET")) 
-    {
-        System.out.println("Error: Method not GET");
-    }
-    try 
-    {
-         String line = from.readLine();
-        while (line.length() != 0) 
+        String firstLine = "";
+        try 
         {
-            headers += line + CRLF;
-            /* We need to find host header to know which server to
-            * contact in case the request URI is not complete. */
-            if (line.startsWith("Host:")) 
-            {
-                tmp = line.split(" ");
-                if (tmp[1].indexOf(':') > 0)
-                {
-                    String[] tmp2 = tmp[1].split(":");
-                    host = tmp2[0];
-                    port = Integer.parseInt(tmp2[1]);
-                } 
-                else
-                {
-                    host = tmp[1];
-                    port = HTTP_PORT;
-                }
-            }
-            line = from.readLine();
+            firstLine = from.readLine();
+        } 
+        catch (IOException e) 
+        {
+            System.out.println("Error reading request line: " + e);
         }
-    } 
-    catch (IOException e) 
-    {
-        System.out.println("Error reading from socket: " + e);
-        return;
-    }
-    System.out.println("Host to contact is: " + host + " at port " + port);
+ 
+        String[] tmp = firstLine.split(" ");
+        //請求方法GET
+        method = tmp[0]; 
+        //請求的URI:index.html
+        URI = tmp[1];
+        //HTTP版本HTTP/1.1
+        version = tmp[2]; 
+ 
+        System.out.println("URI is: " + URI);
+ 
+        if (!method.equals("GET")) 
+        {
+            System.out.println("Error: Method not GET");
+        }
+        try 
+        {
+            String line = from.readLine();
+            while (line.length() != 0) 
+            {
+                headers += line + CRLF;
+                // 需要尋找 Host 標頭，以確定要聯絡的伺服器，特別是當請求 URI 不完整時。
+                if (line.startsWith("Host:")) 
+                {
+                    tmp = line.split(" ");
+                    //如果Host標頭包含端口號，分開主機和端口號
+                    if (tmp[1].indexOf(':') > 0)
+                    {
+                        String[] tmp2 = tmp[1].split(":");
+                        host = tmp2[0];
+                        port = Integer.parseInt(tmp2[1]);
+                    } 
+                    else
+                    {
+                        host = tmp[1];
+                        port = HTTP_PORT;
+                    }
+                }
+                line = from.readLine();
+            }
+        } 
+        catch (IOException e) 
+        {
+            System.out.println("Error reading from socket: " + e);
+            return;
+        }
+        System.out.println("Host to contact is: " + host + " at port " + port);
     }
 
-    /** Return host for which this request is intended */
-    public String getHost() {
+    //返回此請求目標的主機
+    public String getHost() 
+    {
         return host;
     }
 
-    /** Return port for server */
-    public int getPort() {
+    //返回伺服器的端口號
+    public int getPort() 
+    {
         return port;
     }
 
-    /**
-     * Convert request into a string for easy re-sending.
-     */
-    public String toString() {
+    //將請求轉換為字串，以便重新發送.
+    public String toString() 
+    {
         String req = "";
 
         req = method + " " + URI + " " + version + CRLF;
         req += headers;
-        /* This proxy does not support persistent connections */
+        //於此代理伺服器不支援持續連線，強制設定連線關閉
         req += "Connection: close" + CRLF;
         req += CRLF;
 
