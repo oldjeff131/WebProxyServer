@@ -1,5 +1,6 @@
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class HttpResponse {
@@ -20,6 +21,7 @@ public class HttpResponse {
     /** Read response from server. */
     public HttpResponse(DataInputStream fromServer) 
     {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(fromServer, StandardCharsets.UTF_8));
         /* Length of the object */
         int length = -1;
         boolean gotStatusLine = false;
@@ -28,7 +30,7 @@ public class HttpResponse {
         try 
         {
             // 讀取狀態行
-            String line = fromServer.readLine();
+            String line = reader.readLine();
             while (line.length() != 0) 
             {
                 if (!gotStatusLine) 
@@ -52,7 +54,7 @@ public class HttpResponse {
                     String[] tmp = line.split(" ");
                     length = Integer.parseInt(tmp[1]);
                 }
-                line = fromServer.readLine();
+                line = reader.readLine();
             }
         } 
         catch (IOException e) 
