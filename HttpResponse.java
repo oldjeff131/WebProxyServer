@@ -15,6 +15,7 @@ public class HttpResponse {
     int status;
     String statusLine = "";
     String headers = "";
+    String method;
     //回應的主體
     byte[] body = new byte[MAX_OBJECT_SIZE];
 
@@ -27,10 +28,19 @@ public class HttpResponse {
         boolean gotStatusLine = false;
 
         /* First read status line and response headers */
-        try 
+    try 
         {
             // 讀取狀態行
             String line = reader.readLine();
+            String[] tokens = line.split(" ");
+            method = tokens[0];
+
+            //確保處理所有方法例如 GET、POST、PUT）
+            if (!method.equals("GET") && !method.equals("POST") && !method.equals("PUT") && !method.equals("DELETE")) 
+            {
+                throw new IOException("Error: Method not supported: " + method);
+            }
+
             while (line.length() != 0) 
             {
                 if (!gotStatusLine) 

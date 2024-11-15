@@ -16,8 +16,7 @@ public class HttpRequest {
     private int port;
 
     //透過從客戶端Socket讀取來建立HttpRequest物件，from客戶端輸入流，用於讀取請求資料
-    public HttpRequest(BufferedReader from) 
-    {
+    public HttpRequest(BufferedReader from) throws IOException{
         String firstLine = "";
         try 
         {
@@ -29,12 +28,20 @@ public class HttpRequest {
         }
  
         String[] tmp = firstLine.split(" ");
+        if (tmp.length < 3) {
+            throw new IOException("Error: Malformed request line: " + firstLine);
+        }
         //請求方法GET
         method = tmp[0]; 
         //請求的URI:index.html
         URI = tmp[1];
         //HTTP版本HTTP/1.1
-        version = tmp[2]; 
+        version = tmp[2];
+        
+        //檢查是否支持該方法
+        if (!method.equals("GET")) {
+            throw new IOException("Error: Method not supported: " + method);
+        }
  
         System.out.println("URI is: " + URI);
  
