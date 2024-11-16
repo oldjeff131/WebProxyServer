@@ -22,7 +22,7 @@ public class HttpResponse {
     /** Read response from server. */
     public HttpResponse(DataInputStream fromServer) 
     {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(fromServer, StandardCharsets.UTF_8));
+        
         /* Length of the object */
         int length = -1;
         boolean gotStatusLine = false;
@@ -31,17 +31,9 @@ public class HttpResponse {
     try 
         {
             // 讀取狀態行
-            String line = reader.readLine();
-            String[] tokens = line.split(" ");
-            method = tokens[0];
+            String line = fromServer.readLine();
 
-            //確保處理所有方法例如 GET、POST、PUT）
-            if (!method.equals("GET") && !method.equals("POST") && !method.equals("PUT") && !method.equals("DELETE")) 
-            {
-                throw new IOException("Error: Method not supported: " + method);
-            }
-
-            while (line.length() != 0) 
+            while (line != null && !line.isEmpty()) 
             {
                 if (!gotStatusLine) 
                 {
@@ -51,6 +43,10 @@ public class HttpResponse {
                 else 
                 {
                     headers += line + CRLF;
+                    if (line.toLowerCase().startsWith("content-length")) {
+                        String[] parts = line.split(":");
+                        length = Integer.parseInt(parts[1].trim());
+                    }
                 }
 
                 /*
@@ -59,12 +55,7 @@ public class HttpResponse {
                  * 而另一些則返回 "Content-length"。在此處需要檢查兩者。
                  */
                 // 檢查回應是否包含Content-Length標頭，用於獲取內容的長度
-                if (line.startsWith("Content-Length") || line.startsWith("Content-length")) 
-                {
-                    String[] tmp = line.split(" ");
-                    length = Integer.parseInt(tmp[1]);
-                }
-                line = reader.readLine();
+                line = fromServer.readLine();
             }
         } 
         catch (IOException e) 

@@ -2,6 +2,8 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
+import javax.net.ssl.SSLSocketFactory;
+
 public class ProxyCache {
     /** Port for the proxy */
     private static int port;
@@ -46,11 +48,22 @@ public class ProxyCache {
             System.out.println("Error reading request from client: " + e);
             return;
         }
+
         //將請求發送至伺服器
         try 
         {
-            //開啟與伺服器的 Socket 連接
-            server = new Socket(request.getHost(), request.getPort());
+            if (request.getPort() == 443) {
+                //建立HTTPS，使用SSLSocket
+                SSLSocketFactory factory =(SSLSocketFactory) SSLSocketFactory.getDefault();
+                server = factory.createSocket(request.getHost(), request.getPort());
+                System.out.println("使用 SSLSocket 連接到 HTTPS 伺服器: " + request.getHost());
+            }
+            else
+            {
+                //使用普通的Socket連接到HTTP伺服器
+                server = new Socket(request.getHost(), request.getPort());
+                System.out.println("使用普通 Socket 連接到 HTTP 伺服器: " + request.getHost());
+            }
             //使用 DataOutputStream 發送請求給伺服器
             DataOutputStream toServer = new DataOutputStream(server.getOutputStream());
             //寫入HTTP請求

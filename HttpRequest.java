@@ -28,9 +28,7 @@ public class HttpRequest {
         }
  
         String[] tmp = firstLine.split(" ");
-        if (tmp.length < 3) {
-            throw new IOException("Error: Malformed request line: " + firstLine);
-        }
+
         //請求方法GET
         method = tmp[0]; 
         //請求的URI:index.html
@@ -38,17 +36,8 @@ public class HttpRequest {
         //HTTP版本HTTP/1.1
         version = tmp[2];
         
-        //檢查是否支持該方法
-        if (!method.equals("GET")) {
-            throw new IOException("Error: Method not supported: " + method);
-        }
- 
         System.out.println("URI is: " + URI);
  
-        if (!method.equals("GET")) 
-        {
-            System.out.println("Error: Method not GET");
-        }
         try 
         {
             String line = from.readLine();
