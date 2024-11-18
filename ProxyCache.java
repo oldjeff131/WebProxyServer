@@ -1,16 +1,17 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import javax.net.ssl.*;
 
-import javax.net.ssl.SSLSocketFactory;
 
 public class ProxyCache {
-    /** Port for the proxy */
+    //代理伺服器的埠號 
     private static int port;
-    /** Socket for client connections */
+    //客戶端連線的伺服器Socket
     private static ServerSocket socket;
-
-    /** Create the ProxyCache object and the socket */
+    //簡單的快取實作，將請求的結果存放於此
+    private static Map<String, byte[]> cache = new HashMap<>();
+    //簡單的快取實作，將請求的結果存放於此
     public static void init(int p) 
     {
         port = p;
@@ -48,6 +49,25 @@ public class ProxyCache {
             System.out.println("Error reading request from client: " + e);
             return;
         }
+        try
+        {
+            
+            String cacheKey = request.getURI();
+            if (cache.containsKey(cacheKey)) 
+            {
+                System.out.println("從快取中讀取請求：" + cacheKey);
+                OutputStream toClient = client.getOutputStream();
+                //快取中的內容返回給客戶端
+                toClient.write(cache.get(cacheKey)); 
+                toClient.flush();
+                client.close();
+                return;
+            }
+        }
+        catch(IOException e)
+        {
+            System.out.println("Error: " + e);
+        }
 
         //將請求發送至伺服器
         try 
@@ -84,13 +104,13 @@ public class ProxyCache {
         /* Read response and forward it to client */
         try 
         {
-            // 使用 DataInputStream 讀取伺服器的回應
+            //使用 DataInputStream 讀取伺服器的回應
             DataInputStream fromServer = new DataInputStream(server.getInputStream());
-            // 解析伺服器的回應並創建 HttpResponse 對象
+            //解析伺服器的回應並創建 HttpResponse 對象
             response = new HttpResponse(fromServer);
-            // 使用 DataOutputStream 將回應轉發給客戶端
+            //使用DataOutputStream將回應轉發給客戶端
             DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
-            // 將回應標頭和主體寫入客戶端
+            //將回應標頭和主體寫入客戶端
             toClient.writeBytes(response.toString());
             toClient.write(response.body);
             /* Write response to client. First headers, then body */
@@ -98,7 +118,7 @@ public class ProxyCache {
             server.close();
         }
             //將物件插入快取
-            //填寫 (僅限選擇性練習)
+            //填寫(僅限選擇性練習)
         catch (IOException e) 
         {
             System.out.println("Error writing response to client: " + e);
@@ -146,4 +166,6 @@ public class ProxyCache {
         }
 
     }
+
+
 }
