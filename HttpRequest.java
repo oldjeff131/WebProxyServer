@@ -84,6 +84,11 @@ public class HttpRequest {
         return port;
     }
 
+    //獲取 URI
+    public String getURI() {
+        return URI;
+    }
+
     //將請求轉換為字串，以便重新發送.
     public String toString() 
     {
