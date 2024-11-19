@@ -72,6 +72,12 @@ public class HttpRequest {
         System.out.println("Host to contact is: " + host + " at port " + port);
     }
 
+    public String getMethod() 
+    {
+        return method;
+    }
+
+
     //返回此請求目標的主機
     public String getHost() 
     {
