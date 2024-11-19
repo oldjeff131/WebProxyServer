@@ -21,7 +21,8 @@ public class ServerBrowser {
         try 
         {
             // 創建監聽用的 ServerSocket
-            serverSocket = new ServerSocket(port); 
+            serverSocket = new ServerSocket(port);
+            System.out.println("Proxy started on port: " + port); 
         }
         catch (IOException e) 
         {
