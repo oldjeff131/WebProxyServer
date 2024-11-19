@@ -1,6 +1,8 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.*;
+
 import javax.net.ssl.*;
 
 
@@ -9,8 +11,8 @@ public class ProxyCache {
     private static int port;
     //客戶端連線的伺服器Socket
     private static ServerSocket socket;
-    //簡單的快取實作，將請求的結果存放於此
-    private static Map<String, byte[]> cache = new HashMap<>();
+    //使用ConcurrentHashMap作為快取容器，儲存已經請求過的資料
+    private static final Map<String, CachedObject> cache = new ConcurrentHashMap<>();
     //簡單的快取實作，將請求的結果存放於此
     public static void init(int p) 
     {
@@ -35,7 +37,11 @@ public class ProxyCache {
         Socket[] server =new Socket[2] ;// 用數組包裝 server
         HttpRequest request = null;
         HttpResponse response = null;
-
+        boolean httpbool=false;
+        boolean httpsbool=false;
+        boolean cachebool=false;
+        String cacheKey=null;
+        CachedObject cachedObject=null;
         /*
          * 處理請求。若出現任何異常，則返回並結束此次請求。
          * 這可能會導致客戶端掛起一段時間，直到超時。
@@ -46,116 +52,167 @@ public class ProxyCache {
         {
             BufferedReader fromClient = new BufferedReader(new InputStreamReader(client.getInputStream()));
             request = new HttpRequest(fromClient);
+            // 檢查是否有快取
+            cacheKey = request.getHost() + request.getURI();
+            cachedObject = cache.get(cacheKey);
+            if (cachedObject != null && cachedObject.isValid()) 
+            {
+                cachebool=true;
+            }
+            else
+            {
+                cachebool=false;
+            }
         }
         catch (IOException e) 
         {
             System.out.println("Error reading request from client: " + e);
             return;
         }
-        try
-        {
-            
-            String cacheKey = request.getURI();
-            if (cache.containsKey(cacheKey)) 
-            {
-                System.out.println("從快取中讀取請求：" + cacheKey);
-                OutputStream toClient = client.getOutputStream();
-                //快取中的內容返回給客戶端
-                toClient.write(cache.get(cacheKey)); 
-                toClient.flush();
-                //client.close();
-                return;
-            }
-        }
-        catch(IOException e)
-        {
-            System.out.println("Error: " + e);
-        }
 
-        //將請求發送至伺服器
-        if ("CONNECT".equalsIgnoreCase(request.getMethod())) {
-            try {
-                server[0] = new Socket(request.getHost(), request.getPort());
-                System.out.println("使用 CONNECT 方法連接到 HTTPS 伺服器: " + request.getHost() + "，埠號: " + request.getPort());
+        if(!cachebool)
+        {
+            //將請求發送至伺服器
+            if ("CONNECT".equalsIgnoreCase(request.getMethod())) 
+            {
+                try 
+                {
+                    httpsbool=true;
+                    server[0] = new Socket(request.getHost(), request.getPort());
+                    System.out.println("使用 CONNECT 方法連接到 HTTPS 伺服器: " + request.getHost() + "，埠號: " + request.getPort());
         
-                // 回應客戶端，表示隧道已建立
-                DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
-                toClient.writeBytes("HTTP/1.1 200 Connection Established\r\n\r\n");
-                toClient.flush();
+                    // 回應客戶端，表示隧道已建立
+                    DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+                    toClient.writeBytes("HTTP/1.1 200 Connection Established\r\n\r\n");
+                    toClient.flush();
         
-                // 雙向資料轉發
-                Thread forwardClientToServer = new Thread(() -> proxy.forwardData(client, server[0]));
-                Thread forwardServerToClient = new Thread(() -> proxy.forwardData(server[0], client));
-                forwardClientToServer.start();
-                forwardServerToClient.start();
+                    // 雙向資料轉發
+                    Thread forwardClientToServer = new Thread(() -> proxy.forwardData(client, server[0]));
+                    Thread forwardServerToClient = new Thread(() -> proxy.forwardData(server[0], client));
+                    forwardClientToServer.start();
+                    forwardServerToClient.start();
         
-                // 等待資料轉發執行緒完成
-                forwardClientToServer.join();
-                forwardServerToClient.join();
+                    // 等待資料轉發執行緒完成
+                    forwardClientToServer.join();
+                    forwardServerToClient.join();
+                }
+                catch (Exception e) 
+                {
+                    System.err.println("Error handling CONNECT method: " + e.getMessage());
+                }
+                finally 
+                {
+                    try
+                    {
+                        if (server[0] != null) server[0].close();
+                    } 
+                    catch (IOException e) 
+                    {
+                        System.err.println("Error closing server socket: " + e.getMessage());
+                    }
+
+                }
             }
-             catch (Exception e) {
-                System.err.println("Error handling CONNECT method: " + e.getMessage());
-            }
-            finally 
+            else if ("GET".equalsIgnoreCase(request.getMethod()))
             {
                 try
                 {
-                    if (server[0] != null) server[0].close();
-                } 
+                    httpbool=true;
+                    // 處理普通 HTTP 請求
+                    server[1] = new Socket(request.getHost(), request.getPort());
+                    System.out.println("使用普通 Socket 連接到 HTTP 伺服器: " + request.getHost());
+        
+                    // 使用 DataOutputStream 發送請求給伺服器
+                    DataOutputStream toServer = new DataOutputStream(server[1].getOutputStream());
+        
+                    // 寫入 HTTP 請求
+                    toServer.writeBytes(request.toString());
+                    toServer.flush();
+                }
+                catch (UnknownHostException e) 
+                {
+                    System.out.println("無法解析主機: " + e);
+                }
                 catch (IOException e) 
                 {
-                    System.err.println("Error closing server socket: " + e.getMessage());
+                    System.out.println("I/O 錯誤: " + e); 
                 }
             }
-        }
-        else 
-        {
-            try
+
+            /* Read response and forward it to client */
+            try 
             {
-            // 處理普通 HTTP 請求
-            server[1] = new Socket(request.getHost(), request.getPort());
-            System.out.println("使用普通 Socket 連接到 HTTP 伺服器: " + request.getHost());
-        
-            // 使用 DataOutputStream 發送請求給伺服器
-            DataOutputStream toServer = new DataOutputStream(server[1].getOutputStream());
-        
-            // 寫入 HTTP 請求
-            toServer.writeBytes(request.toString());
-            toServer.flush();
+                DataInputStream fromServer=null;
+                //使用 DataInputStream 讀取伺服器的回應
+                if(httpbool)
+                {
+                    fromServer = new DataInputStream(server[1].getInputStream());
+                }
+                else if(httpsbool)
+                {
+                    fromServer = new DataInputStream(server[0].getInputStream());
+                }
+            
+                //解析伺服器的回應並創建 HttpResponse 對象
+                response = new HttpResponse(fromServer);
+
+                // 讀取伺服器的響應並將其發送回客戶端
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                ByteArrayOutputStream responseBuffer = new ByteArrayOutputStream();
+                while ((bytesRead = fromServer.read(buffer)) != -1) 
+                {
+                    responseBuffer.write(buffer, 0, bytesRead);
+                }
+
+                //使用DataOutputStream將回應轉發給客戶端
+                DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+                // 將伺服器的響應寫入客戶端
+                toClient.write(responseBuffer.toByteArray());
+                toClient.flush();
+
+                //將回應標頭和主體寫入客戶端
+                toClient.writeBytes(response.toString());
+                toClient.write(response.body);
+
+                // 存入快取
+                cache.put(cacheKey, new CachedObject(responseBuffer.toByteArray()));
+
+                /* Write response to client. First headers, then body */
+                client.close();
+
+                if(httpbool)
+                {
+                    server[1].close();
+                }
+                else if(httpsbool)
+                {
+                    server[0].close();
+                }
             }
-            catch (UnknownHostException e) 
-            {
-                System.out.println("無法解析主機: " + e);
-            }
+                //將物件插入快取
+                //填寫(僅限選擇性練習)
             catch (IOException e) 
             {
-                System.out.println("I/O 錯誤: " + e); 
-            }
-        }
-        /* Read response and forward it to client */
-        try 
-        {
-            //使用 DataInputStream 讀取伺服器的回應
-            DataInputStream fromServer = new DataInputStream(server[1].getInputStream());
-            //解析伺服器的回應並創建 HttpResponse 對象
-            response = new HttpResponse(fromServer);
-            //使用DataOutputStream將回應轉發給客戶端
-            DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
-            //將回應標頭和主體寫入客戶端
-            toClient.writeBytes(response.toString());
-            toClient.write(response.body);
-            /* Write response to client. First headers, then body */
-            client.close();
-            server[1].close();
-        }
-            //將物件插入快取
-            //填寫(僅限選擇性練習)
-        catch (IOException e) 
-        {
             System.out.println("Error writing response to client: " + e);
+            
+            }   
         }
-        
+        else
+        {
+            // 如果快取有效，直接將快取資料返回給客戶端
+            System.out.println("Cache hit: " + request.getURI());
+            DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+            toClient.writeBytes(cachedObject.getResponse());
+            toClient.flush();
+        }
     }
+        
+        
+            
+    
+       
+
 
     
 
@@ -181,16 +238,16 @@ public class ProxyCache {
         init(myPort);
 
         //主迴圈。監聽傳入的連接，並為每個連接生成一個新執行緒來處理
-        Socket client = null;
+        //Socket client = null;
 
         while (true) 
         {
             try 
             {
-                client = socket.accept();
-                handle(client);
-                //Socket client = socket.accept();
-                //new Thread(() -> handle(client)).start();
+                //client = socket.accept();
+                //handle(client);
+                Socket client = socket.accept();
+                new Thread(() -> handle(client)).start();
             } 
             catch (IOException e) 
             {
@@ -215,6 +272,30 @@ public class ProxyCache {
         catch (IOException e) 
         {
             System.err.println("Error forwarding data: " + e.getMessage());
+        }
+    }
+
+    // 定義緩存物件，包含響應資料和過期時間
+    static class CachedObject 
+    {
+        private final byte[] response;
+        private final long timestamp;
+
+        public CachedObject(byte[] response) 
+        {
+            this.response = response;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        public byte[] getResponse() 
+        {
+            return response;
+        }
+
+        public boolean isValid() 
+        {
+            // 快取過期時間設為5分鐘（300000毫秒）
+            return System.currentTimeMillis() - timestamp < 300000;
         }
     }
     
