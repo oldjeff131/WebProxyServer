@@ -156,6 +156,8 @@ public class ProxyCache {
             {
                 client = socket.accept();
                 handle(client);
+                //Socket client = socket.accept();
+                //new Thread(() -> handle(client)).start();
             } 
             catch (IOException e) 
             {
