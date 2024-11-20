@@ -108,11 +108,13 @@ public class ProxyCache {
                 catch (UnknownHostException e) 
                 {
                     System.out.println("無法解析主機: " + e);
+                    System.out.println("轉換到404網頁並顯示Unknown Host");
                     proxy.sendErrorResponse(client, 404, "Unknown Host");
                 }
                 catch (Exception e) 
                 {
                     System.out.println("Error handling CONNECT method: " + e);
+                    System.out.println("轉換到500網頁並顯示Internal Server Error");
                     proxy.sendErrorResponse(client, 500, "Internal Server Error");
                     
                 }
@@ -148,12 +150,14 @@ public class ProxyCache {
                 catch (UnknownHostException e) 
                 {
                     System.out.println("無法解析主機: " + e);
+                    System.out.println("轉換到404網頁並顯示Unknown Host");
                     proxy.sendErrorResponse(client, 404, "Unknown Host");
                 }
                 catch (IOException e) 
                 {
                     proxy.sendErrorResponse(client, 500, "Internal Server Error");
-                    System.out.println("I/O 錯誤: " + e); 
+                    System.out.println("Error handling CONNECT method: " + e);
+                    System.out.println("轉換到500網頁並顯示Internal Server Error"); 
                 }
             }
 
