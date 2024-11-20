@@ -1,3 +1,4 @@
+主要code在ProxyCache  
  編譯指令  
  `javac -deprecation *.java`  
  執行代理伺服器  
