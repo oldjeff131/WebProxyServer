@@ -226,9 +226,44 @@ public class ProxyCache {
         }
     }
     
+    private void sendErrorResponse(Socket client, int statusCode, String message) {
+        try (OutputStream os = client.getOutputStream();
+             PrintWriter writer = new PrintWriter(os, true)) {
     
-
-        
+            // 根據 HTTP 標準定義狀態碼與對應訊息
+            String statusMessage;
+            switch (statusCode) {
+                case 404:
+                    statusMessage = "Not Found";
+                    break;
+                case 400:
+                    statusMessage = "Bad Request";
+                    break;
+                case 500:
+                    statusMessage = "Internal Server Error";
+                    break;
+                default:
+                    statusMessage = "Unknown Error";
+                    break;
+            }
+    
+            // 回應 HTTP 錯誤訊息
+            writer.println("HTTP/1.1 " + statusCode + " " + statusMessage);
+            writer.println("Content-Type: text/html; charset=UTF-8");
+            writer.println();
+            writer.println("<html>");
+            writer.println("<head><title>Error " + statusCode + "</title></head>");
+            writer.println("<body>");
+            writer.println("<h1>Error " + statusCode + ": " + statusMessage + "</h1>");
+            writer.println("<p>" + message + "</p>");
+            writer.println("</body>");
+            writer.println("</html>");
+            writer.flush();
+    
+        } catch (IOException e) {
+            System.err.println("Error sending error response: " + e.getMessage());
+        }
+    }
 
     public static void handleRequest(Socket clientSocket) {
         try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -259,48 +294,6 @@ public class ProxyCache {
         catch (IOException e) 
         {
             e.printStackTrace();
-        }
-    }
-
-    public void sendErrorResponse(Socket client, int statusCode, String message) {
-        try (OutputStream os = client.getOutputStream();
-             PrintWriter writer = new PrintWriter(os, true)) {
-    
-            // 根據 HTTP 標準定義狀態碼與對應訊息
-            String statusMessage;
-            switch (statusCode) 
-            {
-                case 404:
-                    statusMessage = "Not Found";
-                    break;
-                case 400:
-                    statusMessage = "Bad Request";
-                    break;
-                case 500:
-                    statusMessage = "Internal Server Error";
-                    break;
-                default:
-                    statusMessage = "Unknown Error";
-                    break;
-            }
-    
-            // 回應 HTTP 錯誤訊息
-            writer.println("HTTP/1.1 " + statusCode + " " + statusMessage);
-            writer.println("Content-Type: text/html; charset=UTF-8");
-            writer.println();
-            writer.println("<html>");
-            writer.println("<head><title>Error " + statusCode + "</title></head>");
-            writer.println("<body>");
-            writer.println("<h1>Error " + statusCode + ": " + statusMessage + "</h1>");
-            writer.println("<p>" + message + "</p>");
-            writer.println("</body>");
-            writer.println("</html>");
-            writer.flush();
-    
-        }
-        catch (IOException e) 
-        {
-            System.err.println("Error sending error response: " + e.getMessage());
         }
     }
 
