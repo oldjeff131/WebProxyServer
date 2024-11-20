@@ -3,6 +3,7 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+
 import javax.net.ssl.*;
 
 
@@ -40,11 +41,21 @@ public class ProxyCache {
         boolean cachebool=false;
         String cacheKey=null;
         CachedObject cachedObject=null;
+        HttpURLConnection connection = null;
+
+        //定義CRLF為換行符號
+        final String CRLF = "\r\n";
+        String statusLine = null;
+        String contentTypeLine = null;
+        String entityBody = null;
+
         /*
          * 處理請求。若出現任何異常，則返回並結束此次請求。
          * 這可能會導致客戶端掛起一段時間，直到超時。
          */
 
+        
+        
         //讀取請求
         try 
         {
@@ -94,9 +105,16 @@ public class ProxyCache {
                     forwardClientToServer.join();
                     forwardServerToClient.join();
                 }
+                catch (UnknownHostException e) 
+                {
+                    System.out.println("無法解析主機: " + e);
+                    proxy.sendErrorResponse(client, 404, "Unknown Host");
+                }
                 catch (Exception e) 
                 {
-                    System.err.println("Error handling CONNECT method: " + e.getMessage());
+                    System.out.println("Error handling CONNECT method: " + e);
+                    proxy.sendErrorResponse(client, 500, "Internal Server Error");
+                    
                 }
                 finally 
                 {
@@ -130,9 +148,11 @@ public class ProxyCache {
                 catch (UnknownHostException e) 
                 {
                     System.out.println("無法解析主機: " + e);
+                    proxy.sendErrorResponse(client, 404, "Unknown Host");
                 }
                 catch (IOException e) 
                 {
+                    proxy.sendErrorResponse(client, 500, "Internal Server Error");
                     System.out.println("I/O 錯誤: " + e); 
                 }
             }
@@ -242,6 +262,48 @@ public class ProxyCache {
         }
     }
 
+    public void sendErrorResponse(Socket client, int statusCode, String message) {
+        try (OutputStream os = client.getOutputStream();
+             PrintWriter writer = new PrintWriter(os, true)) {
+    
+            // 根據 HTTP 標準定義狀態碼與對應訊息
+            String statusMessage;
+            switch (statusCode) 
+            {
+                case 404:
+                    statusMessage = "Not Found";
+                    break;
+                case 400:
+                    statusMessage = "Bad Request";
+                    break;
+                case 500:
+                    statusMessage = "Internal Server Error";
+                    break;
+                default:
+                    statusMessage = "Unknown Error";
+                    break;
+            }
+    
+            // 回應 HTTP 錯誤訊息
+            writer.println("HTTP/1.1 " + statusCode + " " + statusMessage);
+            writer.println("Content-Type: text/html; charset=UTF-8");
+            writer.println();
+            writer.println("<html>");
+            writer.println("<head><title>Error " + statusCode + "</title></head>");
+            writer.println("<body>");
+            writer.println("<h1>Error " + statusCode + ": " + statusMessage + "</h1>");
+            writer.println("<p>" + message + "</p>");
+            writer.println("</body>");
+            writer.println("</html>");
+            writer.flush();
+    
+        }
+        catch (IOException e) 
+        {
+            System.err.println("Error sending error response: " + e.getMessage());
+        }
+    }
+
     //讀取命令列參數並啟動代理伺服器
     public static void main(String args[]) 
     {
@@ -326,3 +388,51 @@ public class ProxyCache {
     }
     
 }
+
+/* try {
+            // 建立 URL 對象
+            String Url=request.getURI();
+            URL url = new URL(Url);
+            // 開啟連接
+            connection = (HttpURLConnection) url.openConnection();
+            // 設置請求方法
+            connection.setRequestMethod("GET");
+            // 設置連接超時和讀取超時
+            connection.setConnectTimeout(20000); // 20秒
+            connection.setReadTimeout(20000);    // 20秒
+            // 發送請求並獲取回應碼
+            int responseCode = connection.getResponseCode();
+            // 檢查回應碼
+            DataOutputStream os = new DataOutputStream(socket.getOutputStream());
+            if (responseCode == 200) 
+            {
+                System.out.println("URL 存在，狀態碼: 200 OK");
+            }
+            else if (responseCode == 404) 
+            {
+                System.out.println("URL 不存在，狀態碼: 404 Not Found");
+                sendErrorResponse(client, 404, "Unknown Host");
+            }
+            else 
+            {
+                System.out.println("收到其他回應碼: " + responseCode);
+            }
+        }
+        catch (IOException e)
+        {
+            System.err.println("無法連接到 URL，可能是無效的網址或網路問題: " + e.getMessage());
+        } 
+        finally 
+        {
+            try {
+                server = new Socket(request.getHost(), request.getPort());
+                DataOutputStream toServer = new DataOutputStream(server.getOutputStream());
+                toServer.writeBytes(request.toString());
+            } catch (UnknownHostException e) {
+                sendErrorResponse(client, 404, "Unknown Host");
+                return;
+            } catch (IOException e) {
+                sendErrorResponse(client, 500, "Internal Server Error");
+                return;
+            }
+        } */
