@@ -13,8 +13,26 @@ public class ProxyCache {
     //客戶端連線的伺服器Socket
     private static ServerSocket socket;
     //使用ConcurrentHashMap作為快取容器，儲存已經請求過的資料
-    private static final Map<String, CachedObject> cache = new ConcurrentHashMap<>();
-    //簡單的快取實作，將請求的結果存放於此
+    private static final int HTTP_PORT = 80;
+    private static final int CACHE_EXPIRY_TIME = 60000; // 1 minute cache expiry
+    private static Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+    
+    // 用來表示快取資料
+    static class CacheEntry {
+        HttpResponse response;
+        long timestamp;
+
+        public CacheEntry(HttpResponse response) {
+            this.response = response;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        // 檢查是否過期
+        public boolean isExpired() {
+            return (System.currentTimeMillis() - timestamp) > CACHE_EXPIRY_TIME;
+        }
+    }
+
     public static void init(int p) 
     {
         port = p;
@@ -30,7 +48,7 @@ public class ProxyCache {
         }
     }
 
-    public static void handle(Socket client) 
+    public static void handle(Socket client) throws IOException 
     {
         ProxyCache proxy = new ProxyCache();
         Socket[] server =new Socket[2] ;// 用數組包裝 server
@@ -39,15 +57,9 @@ public class ProxyCache {
         boolean httpbool=false;
         boolean httpsbool=false;
         boolean cachebool=false;
-        String cacheKey=null;
+        CacheEntry cacheKey=null;
         CachedObject cachedObject=null;
         HttpURLConnection connection = null;
-
-        //定義CRLF為換行符號
-        final String CRLF = "\r\n";
-        String statusLine = null;
-        String contentTypeLine = null;
-        String entityBody = null;
 
         /*
          * 處理請求。若出現任何異常，則返回並結束此次請求。
@@ -62,10 +74,10 @@ public class ProxyCache {
             BufferedReader fromClient = new BufferedReader(new InputStreamReader(client.getInputStream()));
             request = new HttpRequest(fromClient);
             // 檢查是否有快取
-            cacheKey = request.getHost() + request.getURI();
-            cachedObject = cache.get(cacheKey);
+            cacheKey = cache.get(request.getURI());
             if (cachedObject != null && cachedObject.isValid()) 
             {
+                response = cacheKey.response;
                 cachebool=true;
             }
             else
@@ -92,6 +104,8 @@ public class ProxyCache {
         
                     // 回應客戶端，表示隧道已建立
                     DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+                    cache.put(request.getURI(), new CacheEntry(response)); // 將資料放入快取
+                    System.out.println("Cache miss for: " + request.getURI());
                     toClient.writeBytes("HTTP/1.1 200 Connection Established\r\n\r\n");
                     toClient.flush();
         
@@ -108,7 +122,7 @@ public class ProxyCache {
                 catch (UnknownHostException e) 
                 {
                     System.out.println("無法解析主機: " + e);
-                    System.out.println("轉換到404網頁並顯示Unknown Host");
+                    System.out.println("轉換到404網頁並顯示Not Found");
                     proxy.sendErrorResponse(client, 404, "Unknown Host");
                 }
                 catch (Exception e) 
@@ -142,7 +156,8 @@ public class ProxyCache {
         
                     // 使用 DataOutputStream 發送請求給伺服器
                     DataOutputStream toServer = new DataOutputStream(server[1].getOutputStream());
-        
+                    cache.put(request.getURI(), new CacheEntry(response)); // 將資料放入快取
+                    System.out.println("Cache miss for: " + request.getURI());
                     // 寫入 HTTP 請求
                     toServer.writeBytes(request.toString());
                     toServer.flush();
@@ -150,7 +165,7 @@ public class ProxyCache {
                 catch (UnknownHostException e) 
                 {
                     System.out.println("無法解析主機: " + e);
-                    System.out.println("轉換到404網頁並顯示Unknown Host");
+                    System.out.println("轉換到404網頁並顯示Not Found");
                     proxy.sendErrorResponse(client, 404, "Unknown Host");
                 }
                 catch (IOException e) 
@@ -197,9 +212,6 @@ public class ProxyCache {
                 toClient.writeBytes(response.toString());
                 toClient.write(response.body);
 
-                // 存入快取
-                cache.put(cacheKey, new CachedObject(responseBuffer.toByteArray()));
-
                 /* Write response to client. First headers, then body */
                 client.close();
 
@@ -222,14 +234,15 @@ public class ProxyCache {
         }
         else
         {
-            //如果快取有效，直接將快取資料返回給客戶端
-            //System.out.println("Cache hit: " + request.getURI());
-            //DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
-            //toClient.writeBytes(cachedObject.getResponse());
-            //toClient.flush();
+            DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+            toClient.writeBytes(response.toString());
+            toClient.flush();
+            client.close();
         }
     }
     
+    
+
     private void sendErrorResponse(Socket client, int statusCode, String message) {
         try (OutputStream os = client.getOutputStream();
              PrintWriter writer = new PrintWriter(os, true)) {
@@ -332,7 +345,14 @@ public class ProxyCache {
                 //client = socket.accept();
                 //handle(client);
                 Socket client = socket.accept();
-                new Thread(() -> handle(client)).start();
+                new Thread(() -> {
+                    try {
+                        handle(client);
+                    } catch (IOException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+                }).start();
             } 
             catch (IOException e) 
             {
