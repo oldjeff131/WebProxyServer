@@ -29,8 +29,6 @@ public class ProxyCache {
         }
     }
 
-    
-
     public static void handle(Socket client) 
     {
         ProxyCache proxy = new ProxyCache();
@@ -200,21 +198,49 @@ public class ProxyCache {
         }
         else
         {
-            // 如果快取有效，直接將快取資料返回給客戶端
-            System.out.println("Cache hit: " + request.getURI());
-            DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
-            toClient.writeBytes(cachedObject.getResponse());
-            toClient.flush();
+            //如果快取有效，直接將快取資料返回給客戶端
+            //System.out.println("Cache hit: " + request.getURI());
+            //DataOutputStream toClient = new DataOutputStream(client.getOutputStream());
+            //toClient.writeBytes(cachedObject.getResponse());
+            //toClient.flush();
         }
     }
+    
+    
+
         
-        
+
+    public static void handleRequest(Socket clientSocket) {
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+             DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) 
+            {
+
+            String line;
+            String requestURI = "";
+
+            // 讀取 HTTP 請求，並提取 URI
+            while ((line = in.readLine()) != null && !line.isEmpty()) 
+            {
+                if (line.startsWith("POST")) 
+                {
+                    //提取POST請求的 URI (假設要上傳的檔案的 URI)
+                    requestURI = line.split(" ")[1];
+                }
+            }
+
+            //在此處處理檔案上傳的邏輯
+
+            // 响應客戶端
+            out.writeBytes("HTTP/1.1 200 OK\r\n");
+            out.writeBytes("Content-Type: text/html\r\n\r\n");
+            out.writeBytes("<html><body><h1>Upload Successful!</h1></body></html>");
             
-    
-       
-
-
-    
+        } 
+        catch (IOException e) 
+        {
+            e.printStackTrace();
+        }
+    }
 
     //讀取命令列參數並啟動代理伺服器
     public static void main(String args[]) 
